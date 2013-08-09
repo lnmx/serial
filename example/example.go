@@ -8,8 +8,8 @@ import (
 )
 
 func main() {
-	device := "COM4"
-	baud := 115200
+	device := "COM9"
+	baud := 9600
 
 	fmt.Println("open", device, "at", baud)
 
@@ -22,17 +22,24 @@ func main() {
 
 	defer port.Close()
 
+	fmt.Println("ready")
+
 	// display data from serial
 	//
 	go func() {
-		scanner := bufio.NewScanner(port)
+		buf := make([]byte, 32)
 
-		for scanner.Scan() {
-			fmt.Println(scanner.Text())
-		}
+		for {
+			n, err := port.Read(buf)
 
-		if err := scanner.Err(); err != nil {
-			fmt.Println("serial read error:", err)
+			if err != nil {
+				fmt.Println("serial read error:", err)
+				return
+			}
+
+			if n > 0 {
+				fmt.Println(n, ">", string(buf[:n]))
+			}
 		}
 	}()
 
