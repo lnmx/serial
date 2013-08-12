@@ -185,7 +185,6 @@ var (
 		Parity_Mark:     3,
 		Parity_Space:    4,
 		BaudRate_9600:   9600,
-		BaudRate_14400:  14400,
 		BaudRate_19200:  19200,
 		BaudRate_38400:  38400,
 		BaudRate_57600:  57600,
