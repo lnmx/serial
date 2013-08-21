@@ -118,15 +118,17 @@ func (p *Port) setCommState() (err error) {
 func (p *Port) setTimeouts() (err error) {
 	timeouts := &_COMMTIMEOUTS{
 		// ms to wait for next byte
-		ReadIntervalTimeout: 5,
+		ReadIntervalTimeout: 1,
 
 		// read total timeout = constant + (multiplier * byte count)
-		ReadTotalTimeoutConstant:   5,
-		ReadTotalTimeoutMultiplier: 5,
+		// zero for both disables total time-outs
+		ReadTotalTimeoutConstant:   0,
+		ReadTotalTimeoutMultiplier: 0,
 
 		// write total timeout = constant * (multiplier * byte count)
-		WriteTotalTimeoutConstant:   10,
-		WriteTotalTimeoutMultiplier: 5,
+		// zero for both disables total time-outs
+		WriteTotalTimeoutConstant:   0,
+		WriteTotalTimeoutMultiplier: 0,
 	}
 
 	err = _SetCommTimeouts(p.handle, timeouts)
