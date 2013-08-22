@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -141,17 +142,37 @@ func (p *Port) close() (err error) {
 }
 
 func (p *Port) read(b []byte) (n int, err error) {
-	var done uint32
-	err = syscall.ReadFile(p.handle, b, &done, nil)
-	n = int(done)
+	for {
+		var done uint32
+		err = syscall.ReadFile(p.handle, b, &done, nil)
+		n = int(done)
+
+		// done on non-0 result or error
+		//
+		if n > 0 || err != nil {
+			break
+		}
+
+		// yield on 0-byte read to avoid spinning
+		//
+		if n == 0 {
+			time.Sleep(1)
+		}
+	}
 
 	return
 }
 
 func (p *Port) write(b []byte) (n int, err error) {
-	var done uint32
-	err = syscall.WriteFile(p.handle, b, &done, nil)
-	n = int(done)
+	for {
+		var done uint32
+		err = syscall.WriteFile(p.handle, b[n:], &done, nil)
+		n += int(done)
+
+		if err != nil || n == len(b) {
+			break
+		}
+	}
 
 	return
 }
