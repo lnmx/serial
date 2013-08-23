@@ -45,6 +45,14 @@ func (p *Port) open() (err error) {
 		return fmt.Errorf("error setting timeouts: %s", err)
 	}
 
+	// reset
+	//
+	err = p.reset()
+
+	if err != nil {
+		return fmt.Errorf("error during reset: %s", err)
+	}
+
 	return
 }
 
@@ -87,6 +95,23 @@ func (p *Port) setCommState() (err error) {
 		return
 	}
 
+	f := _DCB_Flags{
+		Binary:           true,
+		DtrControl:       0x01, // enable
+		DsrSensitivity:   false,
+		TXContinueOnXoff: false,
+		OutX:             false,
+		InX:              false,
+		ErrorChar:        false,
+		Null:             false,
+		RtsControl:       0x01, // enable
+		AbortOnError:     false,
+		OutxCtsFlow:      false,
+		OutxDsrFlow:      false,
+	}
+
+	dcb.Flags = f.Get()
+
 	if v, ok := settings[p.config.BaudRate]; ok {
 		dcb.BaudRate = uint32(v)
 	} else {
@@ -119,7 +144,7 @@ func (p *Port) setCommState() (err error) {
 func (p *Port) setTimeouts() (err error) {
 	timeouts := &_COMMTIMEOUTS{
 		// ms to wait for next byte
-		ReadIntervalTimeout: 1,
+		ReadIntervalTimeout: 2, //0xffffffff,
 
 		// read total timeout = constant + (multiplier * byte count)
 		// zero for both disables total time-outs
@@ -133,6 +158,29 @@ func (p *Port) setTimeouts() (err error) {
 	}
 
 	err = _SetCommTimeouts(p.handle, timeouts)
+
+	return
+}
+
+func (p *Port) reset() (err error) {
+
+	err = syscall.FlushFileBuffers(p.handle)
+
+	if err != nil {
+		return
+	}
+
+	err = _PurgeComm(p.handle, _PURGE_TXABORT|_PURGE_RXABORT|_PURGE_TXCLEAR|_PURGE_RXCLEAR)
+
+	if err != nil {
+		return
+	}
+
+	err = _ClearCommError(p.handle)
+
+	if err != nil {
+		return
+	}
 
 	return
 }
@@ -174,6 +222,10 @@ func (p *Port) write(b []byte) (n int, err error) {
 		}
 	}
 
+	if err != nil {
+		err = p.flush()
+	}
+
 	return
 }
 
@@ -190,6 +242,9 @@ var (
 	setCommTimeouts, _    = syscall.GetProcAddress(kernel32, "SetCommTimeouts")
 	getCommTimeouts, _    = syscall.GetProcAddress(kernel32, "GetCommTimeouts")
 	escapeCommFunction, _ = syscall.GetProcAddress(kernel32, "EscapeCommFunction")
+	flushFileBuffers, _   = syscall.GetProcAddress(kernel32, "FlushFileBuffers")
+	purgeComm, _          = syscall.GetProcAddress(kernel32, "PurgeComm")
+	clearCommError, _     = syscall.GetProcAddress(kernel32, "ClearCommError")
 
 	// map the generic constants in serial.go to values for DCB
 	// (ref. WinBase.h)
@@ -214,6 +269,90 @@ var (
 		BaudRate_115200: 115200,
 	}
 )
+
+type _DCB_Flags struct {
+	Binary           bool
+	Parity           bool
+	OutxCtsFlow      bool
+	OutxDsrFlow      bool
+	DtrControl       byte
+	DsrSensitivity   bool
+	TXContinueOnXoff bool
+	OutX             bool
+	InX              bool
+	ErrorChar        bool
+	Null             bool
+	RtsControl       byte
+	AbortOnError     bool
+	// 17 reserved bits
+}
+
+func (f *_DCB_Flags) Set(v uint32) {
+
+	bit := func(n uint32) bool {
+		var mask uint32 = 1 << n
+
+		return (mask & v) != 0
+	}
+
+	bit2 := func(n uint32) byte {
+		x := v >> n
+		x = x & 0x3
+
+		return byte(x)
+	}
+
+	f.Binary = bit(0)
+	f.Parity = bit(1)
+	f.OutxCtsFlow = bit(2)
+	f.OutxDsrFlow = bit(3)
+	f.DtrControl = bit2(4)
+	f.DsrSensitivity = bit(6)
+	f.TXContinueOnXoff = bit(7)
+	f.OutX = bit(8)
+	f.InX = bit(9)
+	f.ErrorChar = bit(10)
+	f.Null = bit(11)
+	f.RtsControl = bit2(12)
+	f.AbortOnError = bit(14)
+}
+
+func (f _DCB_Flags) Get() (v uint32) {
+
+	bit := func(b bool, n uint32) (v uint32) {
+		if b {
+			v = 1
+		}
+
+		v = v << n
+
+		return
+	}
+
+	bit2 := func(b byte, n uint32) (v uint32) {
+		v = uint32(b & 0x03)
+
+		v = v << n
+
+		return
+	}
+
+	v = v | bit(f.Binary, 0)
+	v = v | bit(f.Parity, 1)
+	v = v | bit(f.OutxCtsFlow, 2)
+	v = v | bit(f.OutxDsrFlow, 3)
+	v = v | bit2(f.DtrControl, 4)
+	v = v | bit(f.DsrSensitivity, 6)
+	v = v | bit(f.TXContinueOnXoff, 7)
+	v = v | bit(f.OutX, 8)
+	v = v | bit(f.InX, 9)
+	v = v | bit(f.ErrorChar, 10)
+	v = v | bit(f.Null, 11)
+	v = v | bit2(f.RtsControl, 12)
+	v = v | bit(f.AbortOnError, 14)
+
+	return
+}
 
 // sizeof(DCB) = 28 bytes
 
@@ -325,6 +464,31 @@ func _SetCommState(handle syscall.Handle, dcb *_DCB) (err error) {
 	return
 }
 
+type purgeFlag int
+
+const (
+	_PURGE_TXABORT purgeFlag = 0x01
+	_PURGE_RXABORT           = 0x02
+	_PURGE_TXCLEAR           = 0x04
+	_PURGE_RXCLEAR           = 0x08
+)
+
+func _PurgeComm(handle syscall.Handle, purge purgeFlag) (err error) {
+	// BOOL PurgeComm( HANDLE hFile, DWORD dwFlags )
+
+	r0, _, e1 := syscall.Syscall(purgeComm, 2, uintptr(handle), uintptr(purge), 0)
+
+	if r0 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+
+	return
+}
+
 // operations for EscapeCommFunction
 // (not exposed in the API yet)
 //
@@ -356,4 +520,21 @@ func _EscapeCommFunction(handle syscall.Handle, escape escapeFn) (err error) {
 	}
 
 	return
+}
+
+func _ClearCommError(handle syscall.Handle) (err error) {
+	// BOOL ClearCommError( HANDLE hFile, LPDWORD lpErrors, LPCOMSTAT lpStat )
+
+	r0, _, e1 := syscall.Syscall(clearCommError, 3, uintptr(handle), 0, 0)
+
+	if r0 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+
+	return
+
 }
