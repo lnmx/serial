@@ -178,7 +178,7 @@ func (p *Port) setTimeouts() (err error) {
 	}
 
 	if *timeouts != *readback {
-		err = fmt.Sprintf("timeout settings overridden by serial device:\nrequested:\n", *timeouts, "actual:\n", *readback)
+		err = fmt.Errorf("timeout settings overridden by serial device:\nrequested:\n%v\nactual:\n%v", *timeouts, *readback)
 
 		return
 	}
