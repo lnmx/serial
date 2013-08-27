@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"syscall"
-	"time"
 	"unsafe"
 )
 
@@ -141,23 +140,48 @@ func (p *Port) setCommState() (err error) {
 	return
 }
 
+const MAXDWORD = 0xffffffff
+
 func (p *Port) setTimeouts() (err error) {
+
 	timeouts := &_COMMTIMEOUTS{
 		// ms to wait for next byte
-		ReadIntervalTimeout: 2, //0xffffffff,
+		ReadIntervalTimeout: p.config.ReadIntervalTimeout,
 
 		// read total timeout = constant + (multiplier * byte count)
 		// zero for both disables total time-outs
-		ReadTotalTimeoutConstant:   0,
-		ReadTotalTimeoutMultiplier: 0,
+		ReadTotalTimeoutConstant:   p.config.ReadTotalTimeoutConstant,
+		ReadTotalTimeoutMultiplier: p.config.ReadTotalTimeoutMultiplier,
 
-		// write total timeout = constant * (multiplier * byte count)
+		// write total timeout = constant + (multiplier * byte count)
 		// zero for both disables total time-outs
-		WriteTotalTimeoutConstant:   0,
-		WriteTotalTimeoutMultiplier: 0,
+		WriteTotalTimeoutConstant:   p.config.WriteTotalTimeoutConstant,
+		WriteTotalTimeoutMultiplier: p.config.WriteTotalTimeoutMultiplier,
 	}
 
 	err = _SetCommTimeouts(p.handle, timeouts)
+
+	if err != nil {
+		return
+	}
+
+	// Verify that the COMMTIMEOUTS were applied.  At least one USB-to-Serial
+	// driver was found to report success after silently overwriting some
+	// values.
+	//
+	readback := new(_COMMTIMEOUTS)
+
+	err = _GetCommTimeouts(p.handle, readback)
+
+	if err != nil {
+		return
+	}
+
+	if *timeouts != *readback {
+		err = fmt.Sprintf("timeout settings overridden by serial device:\nrequested:\n", *timeouts, "actual:\n", *readback)
+
+		return
+	}
 
 	return
 }
@@ -190,23 +214,9 @@ func (p *Port) close() (err error) {
 }
 
 func (p *Port) read(b []byte) (n int, err error) {
-	for {
-		var done uint32
-		err = syscall.ReadFile(p.handle, b, &done, nil)
-		n = int(done)
-
-		// done on non-0 result or error
-		//
-		if n > 0 || err != nil {
-			break
-		}
-
-		// yield on 0-byte read to avoid spinning
-		//
-		if n == 0 {
-			time.Sleep(1)
-		}
-	}
+	var done uint32
+	err = syscall.ReadFile(p.handle, b, &done, nil)
+	n = int(done)
 
 	return
 }
@@ -398,6 +408,18 @@ type _COMMTIMEOUTS struct {
 	ReadTotalTimeoutConstant    uint32
 	WriteTotalTimeoutMultiplier uint32
 	WriteTotalTimeoutConstant   uint32
+}
+
+func (c _COMMTIMEOUTS) String() string {
+	return fmt.Sprintf(
+		"\n  ReadIntervalTimeout:         %08x"+
+			"\n  ReadTotalTimeoutMultiplier:  %08x"+
+			"\n  ReadTotalTimeoutConstant:    %08x"+
+			"\n  WriteTotalTimeoutMultiplier: %08x"+
+			"\n  WriteTotalTimeoutConstant:   %08x"+
+			"\n",
+		c.ReadIntervalTimeout, c.ReadTotalTimeoutMultiplier, c.ReadTotalTimeoutConstant,
+		c.WriteTotalTimeoutMultiplier, c.WriteTotalTimeoutConstant)
 }
 
 func _GetCommTimeouts(handle syscall.Handle, timeouts *_COMMTIMEOUTS) (err error) {

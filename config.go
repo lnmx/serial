@@ -1,11 +1,46 @@
 package serial
 
 type Config struct {
-	Device   string
+
+	// Device Name (ex. "COM1" on Windows, "/dev/ttyUSB0" on Linux)
+	//
+	Device string
+
+	// Baud Rate, use BaudRate_*, default 9600
+	//
 	BaudRate int
+
+	// Data Bits per byte, use DataBits_*, default 8
+	//
 	DataBits int
+
+	// Stop Bits per byte, use StopBits_*, default 1
+	//
 	StopBits int
-	Parity   int
+
+	// Parity, use Parity_*, default None
+	//
+	Parity int
+
+	// termios VMIN, default 1
+	//
+	// see 'man termios(3)'
+	//
+	VMIN uint8
+
+	// termios VTIME, default 0
+	//
+	VTIME uint8
+
+	// win32 COMMTIMEOUTS
+	//
+	// see http://msdn.microsoft.com/en-us/library/windows/desktop/aa363190(v=vs.85).aspx/html
+	//
+	ReadIntervalTimeout         uint32
+	ReadTotalTimeoutMultiplier  uint32
+	ReadTotalTimeoutConstant    uint32
+	WriteTotalTimeoutMultiplier uint32
+	WriteTotalTimeoutConstant   uint32
 }
 
 const (

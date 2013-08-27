@@ -9,6 +9,15 @@ func NewPort() (p *Port) {
 			DataBits: DataBits_8,
 			Parity:   Parity_None,
 			StopBits: StopBits_1,
+
+			VMIN:  1,
+			VTIME: 0,
+
+			ReadIntervalTimeout:         2,
+			ReadTotalTimeoutConstant:    10,
+			ReadTotalTimeoutMultiplier:  0,
+			WriteTotalTimeoutMultiplier: 0,
+			WriteTotalTimeoutConstant:   0,
 		},
 	}
 }

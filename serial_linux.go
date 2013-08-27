@@ -62,7 +62,7 @@ func (p *Port) openHandle() (err error) {
 	term := syscall.Termios{
 		Iflag:  syscall.IGNPAR,
 		Cflag:  syscall.CS8 | syscall.CREAD | syscall.CLOCAL | rate,
-		Cc:     [32]uint8{syscall.VMIN: 1},
+		Cc:     [32]uint8{syscall.VMIN: p.config.VMIN, syscall.VTIME: p.config.VTIME},
 		Ispeed: rate,
 		Ospeed: rate,
 	}
