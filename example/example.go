@@ -84,7 +84,7 @@ func ListenRead(port *serial.Port) {
 			index += len(packet)
 		case <-time.After(time.Millisecond * 50):
 			if index > 0 {
-				fmt.Printf(index, string(buffer[:index]))
+				fmt.Println(index, string(buffer[:index]))
 				index = 0
 			}
 		}
