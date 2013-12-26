@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/lnmx/serial"
 	"os"
+	"time"
 )
 
 func main() {
