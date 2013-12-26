@@ -60,7 +60,6 @@ func main() {
 
 }
 
-
 func ListenRead(port *serial.Port) {
 	ch := make(chan []uint8, 100)
 	go func() {
