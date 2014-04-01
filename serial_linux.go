@@ -110,6 +110,10 @@ func (p *Port) write(b []byte) (n int, err error) {
 	return p.handle.Write(b)
 }
 
+func (p *Port) signal(s Signal, value bool) (err error) {
+	return fmt.Errorf("not implemented")
+}
+
 var (
 
 	// map the generic constants in serial.go to values for termios

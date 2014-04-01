@@ -1,5 +1,12 @@
 package serial
 
+type Signal byte
+
+const (
+	DTR Signal = iota
+	RTS
+)
+
 // NewPort creates a Port.
 //
 func NewPort() (p *Port) {
@@ -72,4 +79,8 @@ func (p *Port) Read(b []byte) (n int, err error) {
 
 func (p *Port) Write(b []byte) (n int, err error) {
 	return p.write(b)
+}
+
+func (p *Port) Signal(s Signal, value bool) (err error) {
+	return p.signal(s, value)
 }

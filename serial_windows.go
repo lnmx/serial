@@ -243,6 +243,28 @@ func (p *Port) flush() (err error) {
 	return syscall.FlushFileBuffers(p.handle)
 }
 
+func (p *Port) signal(s Signal, value bool) (err error) {
+	switch {
+
+	// DTR
+	//
+	case s == DTR && value == false:
+		return _EscapeCommFunction(p.handle, _CLRDTR)
+	case s == DTR && value == true:
+		return _EscapeCommFunction(p.handle, _SETDTR)
+
+	// RTS
+	//
+	case s == RTS && value == false:
+		return _EscapeCommFunction(p.handle, _CLRRTS)
+	case s == RTS && value == true:
+		return _EscapeCommFunction(p.handle, _SETRTS)
+
+	default:
+		return fmt.Errorf("Unreconized signal: %v %v", s, value)
+	}
+}
+
 var (
 	// handles to some serial-related functions not supported by syscall
 	//
@@ -512,7 +534,6 @@ func _PurgeComm(handle syscall.Handle, purge purgeFlag) (err error) {
 }
 
 // operations for EscapeCommFunction
-// (not exposed in the API yet)
 //
 type escapeFn int
 
