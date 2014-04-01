@@ -24,6 +24,7 @@ import (
 type Port struct {
 	config Config
 	handle *os.File
+	fd     uintptr
 }
 
 func (p *Port) configure(cfg Config) (err error) {
@@ -57,7 +58,7 @@ func (p *Port) openHandle() (err error) {
 		return
 	}
 
-	fd := p.handle.Fd()
+	p.fd = p.handle.Fd()
 
 	term := syscall.Termios{
 		Iflag:  syscall.IGNPAR,
@@ -69,7 +70,7 @@ func (p *Port) openHandle() (err error) {
 
 	_, _, errno := syscall.Syscall6(
 		syscall.SYS_IOCTL,
-		uintptr(fd),
+		uintptr(p.fd),
 		uintptr(syscall.TCSETS),
 		uintptr(unsafe.Pointer(&term)),
 		0,
@@ -85,7 +86,7 @@ func (p *Port) openHandle() (err error) {
 		return
 	}
 
-	err = syscall.SetNonblock(int(fd), false)
+	err = syscall.SetNonblock(int(p.fd), false)
 
 	if err != nil {
 		return
@@ -111,7 +112,42 @@ func (p *Port) write(b []byte) (n int, err error) {
 }
 
 func (p *Port) signal(s Signal, value bool) (err error) {
-	return fmt.Errorf("not implemented")
+	var request int
+	var bits int
+
+	if value {
+		// "set modem bits"
+		//
+		request = syscall.TIOCMBIS
+	} else {
+		// "clear modem bits"
+		//
+		request = syscall.TIOCMBIC
+	}
+
+	switch s {
+	case DTR:
+		bits = syscall.TIOCM_DTR
+
+	case RTS:
+		bits = syscall.TIOCM_RTS
+
+	default:
+		return fmt.Errorf("unrecognized signal: %v %v", s, value)
+	}
+
+	_, _, errno := syscall.Syscall(
+		syscall.SYS_IOCTL,
+		uintptr(p.fd),
+		uintptr(request),
+		uintptr(unsafe.Pointer(&bits)),
+	)
+
+	if errno != 0 {
+		err = errno
+	}
+
+	return
 }
 
 var (
